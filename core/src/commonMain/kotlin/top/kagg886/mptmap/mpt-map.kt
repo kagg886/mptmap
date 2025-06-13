@@ -1,0 +1,191 @@
+package top.kagg886.mptmap
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import top.kagg886.mptmap.state.MPTMapService
+import top.kagg886.mptmap.state.MPTMapSetting
+import top.kagg886.mptmap.state.MPTMapState
+import kotlin.math.ceil
+import kotlin.math.pow
+import kotlin.math.roundToInt
+
+@Composable
+fun MPTMap(
+    modifier: Modifier = Modifier,
+    state: MPTMapState,
+    service: MPTMapService,
+    setting: MPTMapSetting,
+) = BoxWithConstraints(modifier) {
+    check(maxWidth != Dp.Infinity) { "maxWidth must be finite" }
+    check(maxHeight != Dp.Infinity) { "maxHeight must be finite" }
+
+    val zoomRangeToZIndex = remember(service.zoomRange) {
+        val aRange = 0..100
+        val bRange = service.zoomRange
+
+        val aSize = aRange.last - aRange.first + 1
+        val bSize = bRange.last - bRange.first + 1
+
+        val map = mutableMapOf<IntRange, Int>()
+
+        for (i in 0 until bSize) {
+            val start = aRange.first + (i * aSize) / bSize
+            val end = if (i == bSize - 1) {
+                aRange.last // 最后一段包含到A范围的末尾
+            } else {
+                aRange.first + ((i + 1) * aSize) / bSize - 1
+            }
+
+            val subRange = start..end
+            val bValue = bRange.first + i
+
+            map[subRange] = bValue
+        }
+
+        map.toMap()
+    }
+
+    val z = remember(state.zoom, zoomRangeToZIndex) {
+        zoomRangeToZIndex.entries.first { state.zoom in it.key }.value
+    }
+
+    //视口大小
+    val (viewPortWidth, viewPortHeight) = with(LocalDensity.current) {
+        Size(maxWidth.toPx(), maxHeight.toPx())
+    }
+
+    //中心瓦片周围的瓦片数（十字排布）
+    val (horizonalLeftTileCount, verticalTopTileCount) = remember(
+        viewPortWidth,
+        viewPortHeight,
+        service.tileSize,
+    ) {
+        (ceil((viewPortWidth / 2 - service.tileSize / 2) / service.tileSize).toInt() + setting.preloadTileSize) to (ceil(
+            (viewPortHeight / 2 - service.tileSize / 2) / service.tileSize
+        ).toInt() + setting.preloadTileSize)
+    }
+
+    val centerTail = remember(state.lat, state.lng, z) {
+        service.getTileParam(state.lat, state.lng, z)
+    }
+
+    //瓦片
+    val tailsMatrix = remember(centerTail, horizonalLeftTileCount, verticalTopTileCount) {
+        val (centerTailX, centerTailY) = centerTail
+        (centerTailY - verticalTopTileCount..centerTailY + verticalTopTileCount).map { newY ->
+            (centerTailX - horizonalLeftTileCount..centerTailX + horizonalLeftTileCount).map { newX ->
+                newX to newY
+            }
+        }.flatten()
+    }
+
+    val tailOffset = remember(state.lat, state.lng, z) {
+        service.getPixelOffsetByLatLng(state.lat, state.lng, z)
+    }
+
+    // 使用 Map 来缓存瓦片，而不是 List
+    val bitmapCache = remember(z) {
+        mutableStateMapOf<Pair<Int, Int>, ImageBitmap?>()
+    }
+
+    LaunchedEffect(tailsMatrix) {
+        // 首先移除不再需要的瓦片
+        val currentTiles = tailsMatrix.toSet()
+        val tilesToRemove = bitmapCache.keys.filter { it !in currentTiles }
+        tilesToRemove.forEach { bitmapCache.remove(it) }
+
+        // 只加载缺失的瓦片
+        val tilesToLoad = tailsMatrix.filter { it !in bitmapCache.keys }
+
+        val lock = Mutex()
+        tilesToLoad.map { tile ->
+            async {
+                val (x,y) = tile
+                val tileCount = 2.0.pow(z).toInt()  // 瓦片总数：2^z
+                val xWrapped = ((x % tileCount) + tileCount) % tileCount  // 正确的循环处理
+                val data = withContext(setting.dispatcher) {
+                    service.requestForImageBitmap(xWrapped, y, z)
+                }
+                lock.withLock {
+                    bitmapCache[tile] = data
+                }
+            }
+        }.awaitAll()
+    }
+
+    val firstTileStartX =
+        (viewPortWidth / 2 - service.tileSize / 2 - horizonalLeftTileCount * service.tileSize).roundToInt()
+    val firstTileStartY =
+        (viewPortHeight / 2 - service.tileSize / 2 - verticalTopTileCount * service.tileSize).roundToInt()
+
+    var nonChangeScale by remember(z) {
+        mutableStateOf(1f)
+    }
+    LaunchedEffect(state.zoom) {
+        val range = zoomRangeToZIndex.entries.first { it.value == z }.key
+        val relativePosition = (state.zoom - range.first).toFloat() / (range.last - range.first).toFloat()
+        nonChangeScale = 1f + relativePosition
+    }
+
+    Canvas(
+        modifier = Modifier
+            .matchParentSize()
+            .pointerInput(z) {
+                detectDragGestures { change, delta ->
+                    val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
+                        pixelOffset = delta,
+                        z = z,
+                        currentLat = state.lat
+                    )
+
+                    // 更新地图状态（注意方向：拖拽方向与地图移动方向相反）
+                    state.lat -= latDelta
+                    state.lng -= lngDelta
+                }
+            }.graphicsLayer {
+                scaleX = nonChangeScale
+                scaleY = nonChangeScale
+            }
+    ) {
+        for (y in 0 until 2 * verticalTopTileCount + 1) {
+            for (x in 0 until 2 * horizonalLeftTileCount + 1) {
+                val index = y * (2 * horizonalLeftTileCount + 1) + x
+                val tile = tailsMatrix.getOrNull(index) ?: continue
+                val bitmap = bitmapCache[tile] ?: continue
+
+                drawImage(
+                    image = bitmap,
+                    topLeft = Offset(
+                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
+                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
+                    )
+                )
+                drawRect(
+                    color = Color.Red,
+                    topLeft = Offset(
+                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
+                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
+                    ),
+                    style = Stroke()
+                )
+            }
+        }
+    }
+}
