@@ -231,7 +231,7 @@ data class GDMapService(private val context: PlatformContext) : MPTMapService {
 
         if (pixel == null) {
             val req = ImageRequest.Builder(context).data(
-                data = "http://wprd03.is.autonavi.com/appmaptile?style=7&x=$x&y=$y&z=$z"
+                data = "https://wprd03.is.autonavi.com/appmaptile?style=7&x=$x&y=$y&z=$z"
             ).build()
 
             val data = (loader.execute(req) as? SuccessResult)?.image
