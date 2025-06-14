@@ -1,25 +1,17 @@
 package top.kagg886.mptmap
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.TransformableState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -28,9 +20,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toOffset
-import androidx.compose.ui.zIndex
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Mutex
@@ -49,7 +38,7 @@ fun MPTMap(
     state: MPTMapState,
     service: MPTMapService,
     setting: MPTMapSetting,
-    content: MPTMapScope.() -> Unit = {},
+    content: @Composable MPTMapScope.() -> Unit = {},
 ) = BoxWithConstraints(modifier) {
     check(maxWidth != Dp.Infinity) { "maxWidth must be finite" }
     check(maxHeight != Dp.Infinity) { "maxHeight must be finite" }
@@ -168,8 +157,8 @@ fun MPTMap(
         state.zoom(state.zoom + transform)
     }
 
-    val scope = remember(service, z) {
-        MPTMapScope(service, z)
+    val scope = remember(service, z,this) {
+        MPTMapScope(service, z,this)
     }
 
     Canvas(
@@ -206,28 +195,11 @@ fun MPTMap(
                         firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
                     )
                 )
-
-                drawRect(
-                    color = Color.Red,
-                    topLeft = Offset(
-                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
-                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
-                    ),
-                    style = Stroke()
-                )
             }
         }
     }
 
-    val markers = remember(scope) {
-        scope.markers
-    }
-
-    LaunchedEffect(markers) {
-        scope.content()
-    }
-
-    for (marker in markers) {
+    for (marker in scope.markers) {
         val (markerX, markerY, offset, alignment, modifier, content) = marker
 
         //当前布局里没有这张瓦片直接返回
@@ -262,22 +234,17 @@ fun MPTMap(
         ) { measurables, constraints ->
             val placeable = measurables.first().measure(constraints)
 
-            val alignmentOffset = when (alignment) {
-                Alignment.TopStart -> IntOffset(0, 0)
-                Alignment.TopCenter -> IntOffset(-placeable.width / 2, 0)
-                Alignment.TopEnd -> IntOffset(-placeable.width, 0)
-                Alignment.CenterStart -> IntOffset(0, -placeable.height / 2)
-                Alignment.Center -> IntOffset(-placeable.width / 2, -placeable.height / 2)
-                Alignment.CenterEnd -> IntOffset(-placeable.width, -placeable.height / 2)
-                Alignment.BottomStart -> IntOffset(0, -placeable.height)
-                Alignment.BottomCenter -> IntOffset(-placeable.width / 2, -placeable.height)
-                Alignment.BottomEnd -> IntOffset(-placeable.width, -placeable.height)
-                else -> IntOffset(0, 0)
-            }
+            val alignmentOffset = alignment.align(
+                size = IntSize.Zero,
+                space = IntSize(placeable.width, placeable.height),
+                layoutDirection = LayoutDirection.Ltr
+            ).let { IntOffset(-it.x, -it.y) }
 
             layout(placeable.width, placeable.height) {
-                placeable.place(alignmentOffset.x, alignmentOffset.y)
+                placeable.place(alignmentOffset)
             }
         }
     }
+
+    content(scope)
 }
