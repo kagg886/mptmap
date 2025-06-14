@@ -1,8 +1,12 @@
 package top.kagg886.mptmap
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.TransformableState
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -117,7 +121,7 @@ fun MPTMap(
         val lock = Mutex()
         tilesToLoad.map { tile ->
             async {
-                val (x,y) = tile
+                val (x, y) = tile
                 val tileCount = 2.0.pow(z).toInt()  // 瓦片总数：2^z
                 val xWrapped = ((x % tileCount) + tileCount) % tileCount  // 正确的循环处理
                 val data = withContext(setting.dispatcher) {
@@ -144,13 +148,17 @@ fun MPTMap(
         nonChangeScale = 1f + relativePosition
     }
 
+    val zoomTransform = rememberTransformableState { zoom, _, _ ->
+        val transform = if (zoom > 1f) 1 else if (zoom < 1f) -1 else 0
+        state.zoom(state.zoom + transform)
+    }
     Canvas(
         modifier = Modifier
             .matchParentSize()
             .pointerInput(z) {
-                detectDragGestures { change, delta ->
+                detectDragGestures { _, delta ->
                     val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
-                        pixelOffset = delta,
+                        pixelOffset = delta / nonChangeScale, //delta是1x缩放情况下的偏移量，需要除以缩放比例
                         z = z,
                         currentLat = state.lat
                     )
@@ -163,6 +171,7 @@ fun MPTMap(
                 scaleX = nonChangeScale
                 scaleY = nonChangeScale
             }
+            .transformable(zoomTransform)
     ) {
         for (y in 0 until 2 * verticalTopTileCount + 1) {
             for (x in 0 until 2 * horizonalLeftTileCount + 1) {
@@ -177,14 +186,14 @@ fun MPTMap(
                         firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
                     )
                 )
-                drawRect(
-                    color = Color.Red,
-                    topLeft = Offset(
-                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
-                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
-                    ),
-                    style = Stroke()
-                )
+//                drawRect(
+//                    color = Color.Red,
+//                    topLeft = Offset(
+//                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
+//                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
+//                    ),
+//                    style = Stroke()
+//                )
             }
         }
     }

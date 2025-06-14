@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import coil3.Image
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -145,11 +146,11 @@ data class GDMapService(private val context: PlatformContext) : MPTMapService {
         return (exp(x) - exp(-x)) / 2.0
     }
 
-    private val cache = mutableMapOf<Long, ImageBitmap>()
+    private val cache = mutableMapOf<String, ImageBitmap>()
 
     override suspend fun requestForImageBitmap(x: Int, y: Int, z: Int): ImageBitmap? {
         val loader = SingletonImageLoader.get(context)
-        val pixel = cache["$x$y$z".toLong()]
+        val pixel = cache["$x$y$z"]
 
         if (pixel == null) {
             val req = ImageRequest.Builder(context).data(
@@ -159,7 +160,7 @@ data class GDMapService(private val context: PlatformContext) : MPTMapService {
             val data = (loader.execute(req) as? SuccessResult)?.image
 
             return data?.toImageBitmap()?.apply {
-                cache["$x$y$z".toLong()] = this
+                cache["$x$y$z"] = this
             }
         }
         return pixel
