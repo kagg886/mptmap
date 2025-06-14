@@ -16,5 +16,26 @@
         </style>
     </head>
     <body></body>
+    <script>
+        // 禁止 Ctrl + 滚轮 缩放
+        window.addEventListener('wheel', function (e) {
+            if (e.ctrlKey) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // 禁止 Ctrl + +/- 缩放
+        window.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && ['+', '-', '=', '_'].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            // 某些浏览器可能使用 keyCode（旧版兼容）
+            if (e.ctrlKey && [61, 107, 173, 109, 187, 189].includes(e.keyCode)) {
+                e.preventDefault();
+            }
+        });
+    </script>
+
     <script src="sampleApp.js"></script>
 </html>

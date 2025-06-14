@@ -13,7 +13,12 @@ kotlin {
     androidTarget()
     jvm()
     wasmJs {
-        browser()
+        outputModuleName = "sampleApp"
+        browser {
+            commonWebpackConfig {
+                outputFileName = "sampleApp.js"
+            }
+        }
         binaries.executable()
     }
     listOf(
