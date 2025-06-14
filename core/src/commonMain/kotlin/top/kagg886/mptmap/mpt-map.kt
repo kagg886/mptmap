@@ -1,23 +1,36 @@
 package top.kagg886.mptmap
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.TransformableState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toOffset
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Mutex
@@ -36,6 +49,7 @@ fun MPTMap(
     state: MPTMapState,
     service: MPTMapService,
     setting: MPTMapSetting,
+    content: MPTMapScope.() -> Unit = {},
 ) = BoxWithConstraints(modifier) {
     check(maxWidth != Dp.Infinity) { "maxWidth must be finite" }
     check(maxHeight != Dp.Infinity) { "maxHeight must be finite" }
@@ -100,6 +114,7 @@ fun MPTMap(
         }.flatten()
     }
 
+    //经纬度相对于所在瓦片的坐标
     val tailOffset = remember(state.lat, state.lng, z) {
         service.getPixelOffsetByLatLng(state.lat, state.lng, z)
     }
@@ -152,6 +167,11 @@ fun MPTMap(
         val transform = if (zoom > 1f) 1 else if (zoom < 1f) -1 else 0
         state.zoom(state.zoom + transform)
     }
+
+    val scope = remember(service, z) {
+        MPTMapScope(service, z)
+    }
+
     Canvas(
         modifier = Modifier
             .matchParentSize()
@@ -186,14 +206,77 @@ fun MPTMap(
                         firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
                     )
                 )
-//                drawRect(
-//                    color = Color.Red,
-//                    topLeft = Offset(
-//                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
-//                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
-//                    ),
-//                    style = Stroke()
-//                )
+
+                drawRect(
+                    color = Color.Red,
+                    topLeft = Offset(
+                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
+                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
+                    ),
+                    style = Stroke()
+                )
+            }
+        }
+    }
+
+    val markers = remember(scope) {
+        scope.markers
+    }
+
+    LaunchedEffect(markers) {
+        scope.content()
+    }
+
+    for (marker in markers) {
+        val (markerX, markerY, offset, alignment, modifier, content) = marker
+
+        //当前布局里没有这张瓦片直接返回
+        if (!tailsMatrix.any { (matrixX, matrixY) -> matrixX == markerX && matrixY == markerY }) {
+            continue
+        }
+
+        //这个marker的参考点坐标
+        val markerPosition = Offset(
+            firstTileStartX + (markerX - tailsMatrix[0].first) * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x + offset.x,
+            firstTileStartY + (markerY - tailsMatrix[0].second) * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y + offset.y,
+        )
+
+        // 计算缩放后的位置：以视口中心为原点进行缩放变换
+        val scaledMarkerPosition = Offset(
+            viewPortWidth / 2 + (markerPosition.x - viewPortWidth / 2) * nonChangeScale,
+            viewPortHeight / 2 + (markerPosition.y - viewPortHeight / 2) * nonChangeScale
+        )
+
+        Layout(
+            content = {
+                Box(modifier = modifier) {
+                    content()
+                }
+            },
+            modifier = Modifier.offset {
+                IntOffset(
+                    x = scaledMarkerPosition.x.roundToInt(),
+                    y = scaledMarkerPosition.y.roundToInt()
+                )
+            }
+        ) { measurables, constraints ->
+            val placeable = measurables.first().measure(constraints)
+
+            val alignmentOffset = when (alignment) {
+                Alignment.TopStart -> IntOffset(0, 0)
+                Alignment.TopCenter -> IntOffset(-placeable.width / 2, 0)
+                Alignment.TopEnd -> IntOffset(-placeable.width, 0)
+                Alignment.CenterStart -> IntOffset(0, -placeable.height / 2)
+                Alignment.Center -> IntOffset(-placeable.width / 2, -placeable.height / 2)
+                Alignment.CenterEnd -> IntOffset(-placeable.width, -placeable.height / 2)
+                Alignment.BottomStart -> IntOffset(0, -placeable.height)
+                Alignment.BottomCenter -> IntOffset(-placeable.width / 2, -placeable.height)
+                Alignment.BottomEnd -> IntOffset(-placeable.width, -placeable.height)
+                else -> IntOffset(0, 0)
+            }
+
+            layout(placeable.width, placeable.height) {
+                placeable.place(alignmentOffset.x, alignmentOffset.y)
             }
         }
     }

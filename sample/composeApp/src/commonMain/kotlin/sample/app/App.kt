@@ -1,8 +1,12 @@
 package sample.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Scaffold
@@ -10,21 +14,27 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.unit.dp
 import coil3.Image
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import top.kagg886.mptmap.MPTMap
+import top.kagg886.mptmap.data.LatLng
 import top.kagg886.mptmap.state.*
 import kotlin.math.*
+import kotlin.random.Random
 
 fun ImageLoader.Builder.applyCustomConfig(): ImageLoader.Builder = apply {
     components {
@@ -37,7 +47,7 @@ fun ImageLoader.Builder.applyCustomConfig(): ImageLoader.Builder = apply {
 @Composable
 fun App() {
     val context = LocalPlatformContext.current
-    val state = remember { MPTMapState(39.904632, 116.397691, 60) }
+    val state = remember { MPTMapState(39.905024, 116.393823, 60) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,7 +81,30 @@ fun App() {
             state = state,
             service = remember { GDMapService(context) },
             setting = remember { MPTMapSetting() }
-        )
+        ) {
+            Marker(
+                latLng = LatLng(39.905024, 116.393823),
+                alignment = Alignment.BottomCenter
+            ) {
+                AsyncImage(
+                    model = "https://a.amap.com/jsapi/static/image/plugin/marker_red.png",
+                    contentDescription = "Marker",
+                )
+            }
+
+            Marker(
+                latLng = LatLng(39.905024, 116.393823),
+                alignment = Alignment.BottomCenter
+            ) {
+                Button(
+                    onClick = {
+
+                    }
+                ) {
+                    Text("Button")
+                }
+            }
+        }
     }
 }
 
