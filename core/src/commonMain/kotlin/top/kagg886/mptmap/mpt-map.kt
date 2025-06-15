@@ -109,27 +109,50 @@ fun MPTMap(
     }
 
     //瓦片的bitmap缓存，仅存储直接显示在布局内的瓦片
-    val bitmapCache = remember(z) {
-        mutableStateMapOf<Pair<Int, Int>, ImageBitmap?>()
+    val bitmapCache = remember {
+        mutableStateMapOf<Triple<Int, Int, Int>, ImageBitmap?>()
     }
 
     LaunchedEffect(tailsMatrix) {
-        // 首先移除不再需要的瓦片
-        val currentTiles = tailsMatrix.toSet()
-        val tilesToRemove = bitmapCache.keys.filter { it !in currentTiles }
+        val centerTailUp = service.getTileParam(state.lat, state.lng, (z + 1).coerceIn(service.zoomRange))
+        val centerTailDown = service.getTileParam(state.lat, state.lng, (z - 1).coerceIn(service.zoomRange))
+
+        val tailsMatrixUp =
+            (centerTailUp.second - verticalTopTileCount..centerTailUp.second + verticalTopTileCount).map { newY ->
+                (centerTailUp.first - horizonalLeftTileCount..centerTailUp.first + horizonalLeftTileCount).map { newX ->
+                    newX to newY
+                }
+            }.flatten()
+
+        val tailsMatrixDown =
+            (centerTailDown.second - verticalTopTileCount..centerTailDown.second + verticalTopTileCount).map { newY ->
+                (centerTailDown.first - horizonalLeftTileCount..centerTailDown.first + horizonalLeftTileCount).map { newX ->
+                    newX to newY
+                }
+            }.flatten()
+
+
+        val currentTiles = tailsMatrix.map { (x, y) -> Triple(x, y, z) }
+        val upTiles = tailsMatrixUp.map { (x, y) -> Triple(x, y, (z + 1).coerceIn(service.zoomRange)) }
+        val downTiles = tailsMatrixDown.map { (x, y) -> Triple(x, y, (z - 1).coerceIn(service.zoomRange)) }
+
+        val all = (currentTiles + upTiles + downTiles).toSet()
+
+        // 删除不再使用的瓦片（不同 z 的不会误删）
+        val tilesToRemove = bitmapCache.keys.filter { it !in all }
         tilesToRemove.forEach { bitmapCache.remove(it) }
 
-        // 只加载缺失的瓦片
-        val tilesToLoad = tailsMatrix.filter { it !in bitmapCache.keys }
+        // 加载缓存中缺失的瓦片
+        val tilesToLoad = all.filter { it !in bitmapCache.keys }
 
         val lock = Mutex()
         tilesToLoad.map { tile ->
             async {
-                val (x, y) = tile
-                val tileCount = 2.0.pow(z).toInt()  // 瓦片总数：2^z
-                val xWrapped = ((x % tileCount) + tileCount) % tileCount  // 正确的循环处理
+                val (x, y, tileZ) = tile
+                val tileCount = 2.0.pow(tileZ).toInt()
+                val xWrapped = ((x % tileCount) + tileCount) % tileCount
                 val data = withContext(setting.dispatcher) {
-                    service.requestForImageBitmap(xWrapped, y, z)
+                    service.requestForImageBitmap(xWrapped, y, tileZ)
                 }
                 lock.withLock {
                     bitmapCache[tile] = data
@@ -188,7 +211,7 @@ fun MPTMap(
             for (x in 0 until 2 * horizonalLeftTileCount + 1) {
                 val index = y * (2 * horizonalLeftTileCount + 1) + x
                 val tile = tailsMatrix.getOrNull(index) ?: continue
-                val bitmap = bitmapCache[tile] ?: continue
+                val bitmap = bitmapCache[Triple(tile.first, tile.second, z)] ?: continue
 
                 drawImage(
                     image = bitmap,
