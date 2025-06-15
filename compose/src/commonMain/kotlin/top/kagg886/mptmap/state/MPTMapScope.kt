@@ -2,6 +2,7 @@ package top.kagg886.mptmap.state
 
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.ui.Alignment
@@ -33,11 +34,15 @@ class MPTMapScope(
         alignment: Alignment = Alignment.BottomCenter,
         content: @Composable () -> Unit,
     ) {
-        LaunchedEffect(service,z,modifier,latLng,alignment,content,originBox) {
+        DisposableEffect(service,z,modifier,latLng,alignment,content,originBox) {
             val (x, y) = service.getTileParam(latLng.lat, latLng.lng, z)
             val offset = service.getPixelOffsetByLatLng(latLng.lat, latLng.lng, z)
             val it = InternalMarker(x, y, offset, alignment, modifier, content)
             markers.add(it)
+
+            onDispose {
+                markers.remove(it)
+            }
         }
     }
 }

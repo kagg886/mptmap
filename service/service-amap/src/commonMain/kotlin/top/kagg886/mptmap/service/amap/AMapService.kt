@@ -6,7 +6,10 @@ import top.kagg886.mptmap.service.MPTMapService
 import top.kagg886.mptmap.service.amap.util.sinh
 import kotlin.math.*
 
-class AMapService(private val fetcher: suspend (String) -> ImageBitmap?): MPTMapService {
+class AMapService(
+    private val type: AMapType = AMapType.NORMAL,
+    private val fetcher: suspend (String) -> ImageBitmap?
+) : MPTMapService {
     override val tileSize: Int = 256
     override val zoomRange: IntRange = 1..19
 
@@ -73,6 +76,6 @@ class AMapService(private val fetcher: suspend (String) -> ImageBitmap?): MPTMap
     }
 
     override suspend fun requestForImageBitmap(x: Int, y: Int, z: Int): ImageBitmap? {
-        return fetcher("https://wprd03.is.autonavi.com/appmaptile?style=7&x=$x&y=$y&z=$z")
+        return fetcher(type.urlFormat(x, y, z))
     }
 }

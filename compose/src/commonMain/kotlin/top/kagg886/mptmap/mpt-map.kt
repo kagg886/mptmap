@@ -110,11 +110,11 @@ fun MPTMap(
     }
 
     //瓦片的bitmap缓存，仅存储直接显示在布局内的瓦片
-    val bitmapCache = remember {
+    val bitmapCache = remember(service) {
         mutableStateMapOf<Triple<Int, Int, Int>, ImageBitmap?>()
     }
 
-    LaunchedEffect(tailsMatrix) {
+    LaunchedEffect(service,tailsMatrix) {
         val centerTailUp = service.getTileParam(state.lat, state.lng, (z + 1).coerceIn(service.zoomRange))
         val centerTailDown = service.getTileParam(state.lat, state.lng, (z - 1).coerceIn(service.zoomRange))
 

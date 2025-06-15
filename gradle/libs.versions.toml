@@ -3,6 +3,7 @@
 coilCompose = "3.2.0"
 kotlin = "2.1.21"
 agp = "8.9.3"
+materialIconsCore = "1.7.3"
 maven-publish = "0.32.0"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.8.1"
@@ -30,6 +31,7 @@ ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
 ktor-client-curl = { module = "io.ktor:ktor-client-curl", version.ref = "ktor" }
 ktor-client-winhttp = { module = "io.ktor:ktor-client-winhttp", version.ref = "ktor" }
 androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+material-icons-core = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "materialIconsCore" }
 
 [plugins]
 
