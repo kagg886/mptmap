@@ -12,7 +12,7 @@ internal actual fun Modifier.detectZoomAndDrag(
     z: Int,
     onZoom: (Float) -> Unit,
     onDrag: (Offset) -> Unit
-): Modifier = pointerInput(Unit) {
+): Modifier = pointerInput(z) {
     awaitEachGesture {
         // 追踪当前活动的指针数量
         var activePointersCount = 0

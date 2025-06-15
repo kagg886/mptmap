@@ -173,10 +173,11 @@ fun MPTMap(
             .detectZoomAndDrag(
                 z = z,
                 onZoom = { zoom ->
-                    val transform = if (zoom > 1f) 1 else if (zoom < 1f) -1 else 0
+                    val transform = if (zoom > 1f) setting.speed else if (zoom < 1f) -setting.speed else 0f
                     state.zoom(state.zoom + transform)
                 },
                 onDrag = { delta ->
+                    println(delta)
                     val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
                         pixelOffset = delta / nonChangeScale, //delta是1x缩放情况下的偏移量，需要除以缩放比例
                         z = z,
