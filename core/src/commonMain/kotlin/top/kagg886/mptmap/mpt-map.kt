@@ -1,13 +1,6 @@
 package top.kagg886.mptmap
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.TransformableState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
@@ -17,12 +10,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.changedToUp
-import androidx.compose.ui.input.pointer.consumePositionChange
-import androidx.compose.ui.input.pointer.isCtrlPressed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -38,6 +25,7 @@ import top.kagg886.mptmap.state.MPTMapService
 import top.kagg886.mptmap.state.MPTMapSetting
 import top.kagg886.mptmap.state.MPTMapState
 import top.kagg886.mptmap.util.detectZoomAndDrag
+import top.kagg886.mptmap.util.runIf
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -95,9 +83,10 @@ fun MPTMap(
         viewPortHeight,
         service.tileSize,
     ) {
-        (ceil((viewPortWidth / 2 - service.tileSize / 2) / service.tileSize).toInt() + setting.preloadTileSize) to (ceil(
-            (viewPortHeight / 2 - service.tileSize / 2) / service.tileSize
-        ).toInt() + setting.preloadTileSize)
+        val hLTC = ceil((viewPortWidth / 2 - service.tileSize / 2) / service.tileSize).toInt()
+        val vTTC = ceil((viewPortHeight / 2 - service.tileSize / 2) / service.tileSize).toInt()
+
+        hLTC to vTTC
     }
 
     val centerTail = remember(state.lat, state.lng, z) {
@@ -119,7 +108,7 @@ fun MPTMap(
         service.getPixelOffsetByLatLng(state.lat, state.lng, z)
     }
 
-    // 使用 Map 来缓存瓦片，而不是 List
+    //瓦片的bitmap缓存，仅存储直接显示在布局内的瓦片
     val bitmapCache = remember(z) {
         mutableStateMapOf<Pair<Int, Int>, ImageBitmap?>()
     }
@@ -170,25 +159,26 @@ fun MPTMap(
     Canvas(
         modifier = Modifier
             .matchParentSize()
-            .detectZoomAndDrag(
-                z = z,
-                onZoom = { zoom ->
-                    val transform = if (zoom > 1f) setting.speed else if (zoom < 1f) -setting.speed else 0f
-                    state.zoom(state.zoom + transform)
-                },
-                onDrag = { delta ->
-                    println(delta)
-                    val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
-                        pixelOffset = delta / nonChangeScale, //delta是1x缩放情况下的偏移量，需要除以缩放比例
-                        z = z,
-                        currentLat = state.lat
-                    )
+            .runIf(setting.draggable) {
+                detectZoomAndDrag(
+                    z = z,
+                    onZoom = { zoom ->
+                        val transform = if (zoom > 1f) setting.speed else if (zoom < 1f) -setting.speed else 0f
+                        state.zoom(state.zoom + transform)
+                    },
+                    onDrag = { delta ->
+                        val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
+                            pixelOffset = delta / nonChangeScale, //delta是1x缩放情况下的偏移量，需要除以缩放比例
+                            z = z,
+                            currentLat = state.lat
+                        )
 
-                    // 更新地图状态（注意方向：拖拽方向与地图移动方向相反）
-                    state.lat -= latDelta
-                    state.lng -= lngDelta
-                }
-            )
+                        // 更新地图状态（注意方向：拖拽方向与地图移动方向相反）
+                        state.lat -= latDelta
+                        state.lng -= lngDelta
+                    }
+                )
+            }
             .graphicsLayer {
                 scaleX = nonChangeScale
                 scaleY = nonChangeScale

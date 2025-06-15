@@ -4,7 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlin.coroutines.CoroutineContext
 
 data class MPTMapSetting(
-    val preloadTileSize: Int = 1,
+    val draggable: Boolean = true,
     val dispatcher: CoroutineContext = Dispatchers.Default,
     val speed: Float = 0.4f,
 )
