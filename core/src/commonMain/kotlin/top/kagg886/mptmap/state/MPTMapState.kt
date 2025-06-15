@@ -8,12 +8,12 @@ import top.kagg886.mptmap.data.LatLng
 class MPTMapState(
     lat: Double,
     lng: Double,
-    @androidx.annotation.IntRange(0, 100) zoom: Int = 80,
+    @androidx.annotation.FloatRange(0.0, 100.0) zoom: Float = 80f,
 ) {
 
     constructor(
         latLng: LatLng,
-        @androidx.annotation.IntRange(0, 100) zoom: Int = 80
+        @androidx.annotation.FloatRange(0.0, 100.0) zoom: Float = 80f,
     ) : this(
         latLng.lat,
         latLng.lng,
@@ -28,11 +28,11 @@ class MPTMapState(
     var lat by mutableStateOf(lat)
     var lng by mutableStateOf(lng)
 
-    @delegate:androidx.annotation.IntRange(0, 100)
+    @delegate:androidx.annotation.FloatRange(0.0, 100.0)
     var zoom by mutableStateOf(zoom)
         internal set
 
-    fun zoom(zoom:Int) = apply {
-        this@MPTMapState.zoom = zoom.coerceIn(0,100)
+    fun zoom(zoom: Float) = apply {
+        this@MPTMapState.zoom = zoom.coerceIn(0f, 100f)
     }
 }

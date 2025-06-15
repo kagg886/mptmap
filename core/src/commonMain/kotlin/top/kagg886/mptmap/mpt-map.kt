@@ -1,7 +1,11 @@
 package top.kagg886.mptmap
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.TransformableState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
@@ -13,7 +17,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.consumePositionChange
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -28,6 +37,7 @@ import kotlinx.coroutines.withContext
 import top.kagg886.mptmap.state.MPTMapService
 import top.kagg886.mptmap.state.MPTMapSetting
 import top.kagg886.mptmap.state.MPTMapState
+import top.kagg886.mptmap.util.detectZoomAndDrag
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -70,7 +80,8 @@ fun MPTMap(
     }
 
     val z = remember(state.zoom, zoomRangeToZIndex) {
-        zoomRangeToZIndex.entries.first { state.zoom in it.key }.value
+        //对小数点不敏感，所以可以toInt()
+        zoomRangeToZIndex.entries.first { state.zoom.toInt() in it.key }.value
     }
 
     //视口大小
@@ -148,24 +159,24 @@ fun MPTMap(
     }
     LaunchedEffect(state.zoom) {
         val range = zoomRangeToZIndex.entries.first { it.value == z }.key
-        val relativePosition = (state.zoom - range.first).toFloat() / (range.last - range.first).toFloat()
+        val relativePosition = (state.zoom - range.first) / (range.last - range.first).toFloat()
         nonChangeScale = 1f + relativePosition
     }
 
-    val zoomTransform = rememberTransformableState { zoom, _, _ ->
-        val transform = if (zoom > 1f) 1 else if (zoom < 1f) -1 else 0
-        state.zoom(state.zoom + transform)
-    }
-
-    val scope = remember(service, z,this) {
-        MPTMapScope(service, z,this)
+    val scope = remember(service, z, this) {
+        MPTMapScope(service, z, this)
     }
 
     Canvas(
         modifier = Modifier
             .matchParentSize()
-            .pointerInput(z) {
-                detectDragGestures { _, delta ->
+            .detectZoomAndDrag(
+                z = z,
+                onZoom = { zoom ->
+                    val transform = if (zoom > 1f) 1 else if (zoom < 1f) -1 else 0
+                    state.zoom(state.zoom + transform)
+                },
+                onDrag = { delta ->
                     val (latDelta, lngDelta) = service.getLatLngDeltaByPixelOffset(
                         pixelOffset = delta / nonChangeScale, //delta是1x缩放情况下的偏移量，需要除以缩放比例
                         z = z,
@@ -176,11 +187,11 @@ fun MPTMap(
                     state.lat -= latDelta
                     state.lng -= lngDelta
                 }
-            }.graphicsLayer {
+            )
+            .graphicsLayer {
                 scaleX = nonChangeScale
                 scaleY = nonChangeScale
             }
-            .transformable(zoomTransform)
     ) {
         for (y in 0 until 2 * verticalTopTileCount + 1) {
             for (x in 0 until 2 * horizonalLeftTileCount + 1) {

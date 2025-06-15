@@ -13,7 +13,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
@@ -48,7 +47,7 @@ fun ImageLoader.Builder.applyCustomConfig(): ImageLoader.Builder = apply {
 fun App() {
     val markers = remember { mutableStateListOf<LatLng>() }
     val context = LocalPlatformContext.current
-    val state = remember { MPTMapState(39.905024, 116.393823, 60) }
+    val state = remember { MPTMapState(39.905024, 116.393823, 60f) }
 
     var dialog by remember { mutableStateOf(false) }
     var lat by remember { mutableStateOf("") }
