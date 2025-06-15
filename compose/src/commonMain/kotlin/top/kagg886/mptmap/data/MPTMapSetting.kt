@@ -1,4 +1,4 @@
-package top.kagg886.mptmap.state
+package top.kagg886.mptmap.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlin.coroutines.CoroutineContext

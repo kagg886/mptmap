@@ -21,8 +21,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import top.kagg886.mptmap.state.MPTMapService
-import top.kagg886.mptmap.state.MPTMapSetting
+import top.kagg886.mptmap.service.MPTMapService
+import top.kagg886.mptmap.data.MPTMapSetting
+import top.kagg886.mptmap.state.MPTMapScope
 import top.kagg886.mptmap.state.MPTMapState
 import top.kagg886.mptmap.util.detectZoomAndDrag
 import top.kagg886.mptmap.util.runIf

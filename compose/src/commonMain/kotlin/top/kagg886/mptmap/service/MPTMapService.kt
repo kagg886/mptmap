@@ -1,10 +1,8 @@
-package top.kagg886.mptmap.state
+package top.kagg886.mptmap.service
 
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 
-@Immutable
 interface MPTMapService {
     /**
      * 单个瓦片的大小
@@ -45,4 +43,3 @@ interface MPTMapService {
      */
     fun getLatLngDeltaByPixelOffset(pixelOffset: Offset, z: Int, currentLat: Double): Pair<Double, Double>
 }
-

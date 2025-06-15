@@ -1,4 +1,4 @@
-package top.kagg886.mptmap
+package top.kagg886.mptmap.state
 
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
@@ -7,7 +7,7 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import top.kagg886.mptmap.data.LatLng
-import top.kagg886.mptmap.state.MPTMapService
+import top.kagg886.mptmap.service.MPTMapService
 import top.kagg886.mptmap.data.Marker as InternalMarker
 
 class MPTMapScope(

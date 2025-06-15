@@ -37,7 +37,6 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
-            implementation(project(":core"))
 
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)
@@ -47,6 +46,10 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.serialization)
             implementation(libs.ktor.serialization.json)
+
+
+            implementation(project(":compose"))
+            implementation(project(":service:service-amap"))
         }
 
         androidMain.dependencies {

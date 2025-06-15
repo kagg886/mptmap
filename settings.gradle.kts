@@ -28,6 +28,8 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-include(":core")
+include(":compose")
+
+include(":service:service-amap")
 include(":sample:composeApp")
 

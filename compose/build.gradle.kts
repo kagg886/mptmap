@@ -1,24 +1,25 @@
+import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.SonatypeHost
-
-group = "top.kagg886.mptmap"
-version = "1.0.0"
-
-println(
-    """
-        group: $group,
-        module: $name
-    """.trimIndent()
-)
 
 plugins {
     alias(libs.plugins.multiplatform)
     alias(libs.plugins.android.library)
     alias(libs.plugins.maven.publish)
-    alias(libs.plugins.kotlinx.serialization)
 
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose)
 }
+
+val SKIP_SIGN = (System.getenv("SKIP_SIGN") ?: project.findProperty("SKIP_SIGN") as? String ?: "false").toBooleanStrict()
+val LIB_COMPOSE_VERSION = System.getenv("LIB_COMPOSE_VERSION") ?: project.findProperty("LIB_COMPOSE_VERSION") as? String ?: "unsetted."
+check(LIB_COMPOSE_VERSION.startsWith("v")) {
+    "LIB_COMPOSE_VERSION not supported, current is $LIB_COMPOSE_VERSION"
+}
+
+group = "top.kagg886.mptmap"
+version = LIB_COMPOSE_VERSION.substring(1)
+
+println("LIB_COMPOSE_VERSION: $version")
 
 kotlin {
     jvmToolchain(17)
@@ -34,11 +35,7 @@ kotlin {
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
-
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.kotlinx.serialization.json)
-
         }
 
         commonTest.dependencies {
@@ -65,7 +62,6 @@ kotlin {
             }
         }
     }
-
 }
 
 android {
@@ -77,35 +73,41 @@ android {
     }
 }
 
-//Publishing your Kotlin Multiplatform library to Maven Central
-//https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
-    coordinates(group.toString(), name, version.toString())
-
+    configure(
+        KotlinMultiplatform(
+            // whether to publish a sources jar
+            sourcesJar = true,
+        )
+    )
+    publishToMavenCentral(SonatypeHost.S01)
+    if (!SKIP_SIGN) {
+        signAllPublications()
+    }
+    coordinates(group.toString(), project.name, version.toString())
     pom {
-        name = "mptmap"
-        description = "Tile Map on Kotlin MultiPlatform."
+        name = "MPTMap"
+        description = "An implementation of tile map for Compose Multiplatform."
+        inceptionYear = "2025"
         url = "https://github.com/kagg886/mptmap"
-
         licenses {
             license {
-                name = "MIT"
-                url = "https://opensource.org/licenses/MIT"
+                name = "The Apache License, Version 2.0"
+                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                distribution = "https://www.apache.org/licenses/LICENSE-2.0.txt"
             }
         }
-
         developers {
             developer {
                 id = "kagg886"
                 name = "kagg886"
-                email = "iveour@163.com"
+                url = "https://github.com/kagg886/"
             }
         }
-
         scm {
             url = "https://github.com/kagg886/mptmap"
+            connection = "scm:git:git://github.com/kagg886/mptmap.git"
+            developerConnection = "scm:git:ssh://git@github.com/kagg886/mptmap.git"
         }
     }
-    if (project.hasProperty("signing.keyId")) signAllPublications()
 }
