@@ -110,11 +110,23 @@ fun App() {
                     LazyColumn(Modifier.fillMaxWidth().height(200.dp)) {
                         item {
                             var latLng by remember { mutableStateOf("") }
+                            var errorTip by remember { mutableStateOf("") }
+                            val error by remember {
+                                derivedStateOf {
+                                    errorTip.isNotEmpty()
+                                }
+                            }
                             OutlinedTextField(
                                 value = latLng,
                                 onValueChange = { latLng = it },
                                 placeholder = {
                                     Text("输入经纬度，格式为：lat,lng")
+                                },
+                                isError = error,
+                                supportingText = {
+                                    if (error) {
+                                        Text(errorTip, color = MaterialTheme.colorScheme.error)
+                                    }
                                 },
                                 label = {
                                     Text("经纬度")
@@ -128,7 +140,11 @@ fun App() {
                                                 val lat = split[0].toDoubleOrNull()
                                                 val lng = split[1].toDoubleOrNull()
                                                 if (lat != null && lng != null) {
-                                                    markers.add(LatLng(lat, lng))
+                                                    try {
+                                                        markers.add(LatLng(lat, lng))
+                                                    } catch (e: Exception) {
+                                                        errorTip = e.message ?: "未知错误"
+                                                    }
                                                     latLng = ""
                                                 }
                                             }
