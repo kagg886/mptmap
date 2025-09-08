@@ -1,5 +1,10 @@
 package top.kagg886.mptmap
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -9,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
@@ -18,6 +24,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -26,6 +33,7 @@ import top.kagg886.mptmap.data.MPTMapSetting
 import top.kagg886.mptmap.state.MPTMapScope
 import top.kagg886.mptmap.state.MPTMapState
 import top.kagg886.mptmap.util.detectZoomAndDrag
+import top.kagg886.mptmap.util.rememberPrevious
 import top.kagg886.mptmap.util.runIf
 import kotlin.math.ceil
 import kotlin.math.pow
@@ -114,7 +122,7 @@ fun MPTMap(
         mutableStateMapOf<Triple<Int, Int, Int>, ImageBitmap?>()
     }
 
-    LaunchedEffect(service,tailsMatrix) {
+    LaunchedEffect(service, tailsMatrix) {
         val centerTailUp = service.getTileParam(state.lat, state.lng, (z + 1).coerceIn(service.zoomRange))
         val centerTailDown = service.getTileParam(state.lat, state.lng, (z - 1).coerceIn(service.zoomRange))
 
@@ -180,6 +188,27 @@ fun MPTMap(
         MPTMapScope(service, z, this)
     }
 
+
+
+    // 保存上一个z值和瓦片矩阵用于双层绘制
+    val previousZ = rememberPrevious(z)
+    val previousTailsMatrix = rememberPrevious(tailsMatrix)
+
+    val anim = remember {
+        Animatable(0f)
+    }
+
+    LaunchedEffect(z) {
+        anim.snapTo(0f)
+        anim.animateTo(
+            1f,
+            animationSpec = tween(
+                durationMillis = 100,
+                easing = LinearEasing
+            )
+        )
+    }
+
     Canvas(
         modifier = Modifier
             .matchParentSize()
@@ -208,21 +237,37 @@ fun MPTMap(
                 scaleY = nonChangeScale
             }
     ) {
-        for (y in 0 until 2 * verticalTopTileCount + 1) {
-            for (x in 0 until 2 * horizonalLeftTileCount + 1) {
-                val index = y * (2 * horizonalLeftTileCount + 1) + x
-                val tile = tailsMatrix.getOrNull(index) ?: continue
-                val bitmap = bitmapCache[Triple(tile.first, tile.second, z)] ?: continue
-
-                drawImage(
-                    image = bitmap,
-                    topLeft = Offset(
-                        firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
-                        firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
-                    )
+        previousTailsMatrix?.let { pre ->
+            previousZ?.let { z->
+                drawTiles(
+                    tilesMatrix = pre,
+                    z = z,
+                    bitmapCache = bitmapCache,
+                    alpha = 1f,
+                    firstTileStartX = firstTileStartX,
+                    firstTileStartY = firstTileStartY,
+                    service = service,
+                    tailOffset = tailOffset,
+                    horizonalLeftTileCount = horizonalLeftTileCount,
+                    verticalTopTileCount = verticalTopTileCount
                 )
             }
         }
+
+
+        // 绘制当前瓦片（淡入）
+        drawTiles(
+            tilesMatrix = tailsMatrix,
+            z = z,
+            bitmapCache = bitmapCache,
+            alpha = anim.value,
+            firstTileStartX = firstTileStartX,
+            firstTileStartY = firstTileStartY,
+            service = service,
+            tailOffset = tailOffset,
+            horizonalLeftTileCount = horizonalLeftTileCount,
+            verticalTopTileCount = verticalTopTileCount
+        )
     }
 
     for (marker in scope.markers) {
@@ -273,4 +318,37 @@ fun MPTMap(
     }
 
     content(scope)
+}
+
+/**
+ * 绘制瓦片的扩展函数，支持透明度控制
+ */
+private fun DrawScope.drawTiles(
+    tilesMatrix: List<Pair<Int, Int>>,
+    z: Int,
+    bitmapCache: Map<Triple<Int, Int, Int>, ImageBitmap?>,
+    alpha: Float,
+    firstTileStartX: Int,
+    firstTileStartY: Int,
+    service: MPTMapService,
+    tailOffset: Offset,
+    horizonalLeftTileCount: Int,
+    verticalTopTileCount: Int
+) {
+    for (y in 0 until 2 * verticalTopTileCount + 1) {
+        for (x in 0 until 2 * horizonalLeftTileCount + 1) {
+            val index = y * (2 * horizonalLeftTileCount + 1) + x
+            val tile = tilesMatrix.getOrNull(index) ?: continue
+            val bitmap = bitmapCache[Triple(tile.first, tile.second, z)] ?: continue
+
+            drawImage(
+                image = bitmap,
+                topLeft = Offset(
+                    firstTileStartX + x * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.x,
+                    firstTileStartY + y * service.tileSize.toFloat() + service.tileSize / 2f - tailOffset.y,
+                ),
+                alpha = alpha
+            )
+        }
+    }
 }
